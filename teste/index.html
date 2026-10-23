@@ -206,28 +206,52 @@ function stopCamera(){
  if(stream){for(const track of stream.getTracks())track.stop();stream=null;}
  video.pause();video.srcObject=null;faceBox.style.display='none';clearMesh();panel.classList.remove('active');scanBox.classList.remove('scanning');
 }
-if('speechSynthesis' in window){speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();}
-function speak(message){
- if(!('speechSynthesis' in window))return;
- try{
-  speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(message);
-  u.lang='pt-BR';u.rate=.98;u.pitch=.78;u.volume=1;
-  const voices=speechSynthesis.getVoices();
-  const pt=voices.filter(v=>v.lang.toLowerCase().replace('_','-')==='pt-br');
-  const score=v=>{
-   const name=v.name.toLowerCase();
-   return (name.includes('antonio')?100:0)+(name.includes('francisca')?-30:0)+
-          (name.includes('microsoft')?35:0)+(name.includes('google')?20:0)+
-          (name.includes('natural')||name.includes('neural')?25:0)+(!v.localService?5:0);
-  };
-  pt.sort((a,b)=>score(b)-score(a));
-  u.voice=pt[0]||voices.find(v=>v.lang.toLowerCase().startsWith('pt'))||null;
-  console.info('Ecos do Tempo // voz selecionada:',u.voice?.name||'padrão do sistema');
-  u.onstart=()=>{voiceSpeaking=true;voiceState.textContent='IA // TRANSMISSÃO DE VOZ ATIVA'};
-  u.onend=u.onerror=()=>{voiceSpeaking=false;voiceState.textContent='SÍNTESE DE VOZ // EM ESPERA'};
-  speechSynthesis.speak(u);
- }catch(e){console.warn('Síntese de voz:',e)}
+// Áudio neural pré-gravado — mesmo elemento HTMLAudioElement para manter
+// a autorização de reprodução concedida pelo clique inicial, inclusive em celulares.
+const narration = new Audio();
+narration.preload='auto';
+const voiceQueue=[];
+let voicePlaying=false,voiceGeneration=0,faceNarrated=false;
+const audioFiles={
+ inicio:'audio/ultron_inicio.mp3',
+ deteccao:'audio/ultron_deteccao.mp3',
+ conclusao:'audio/ultron_conclusao.mp3',
+ mensagem:'audio/ultron_mensagem.mp3'
+};
+function voiceStatus(msg){voiceState.textContent=msg;}
+function resetVoice(){
+ voiceGeneration++;voiceQueue.length=0;voicePlaying=false;
+ narration.pause();narration.removeAttribute('src');narration.load();
+ voiceSpeaking=false;
+}
+async function nextVoice(){
+ if(voicePlaying || !voiceQueue.length)return;
+ const item=voiceQueue.shift(),gen=voiceGeneration;
+ voicePlaying=true;voiceSpeaking=true;
+ narration.src=audioFiles[item];
+ voiceStatus('IA // TRANSMISSÃO: '+item.toUpperCase());
+ try{await narration.play();}
+ catch(err){
+  console.error('Não foi possível reproduzir '+narration.src,err);
+  voiceStatus('ÁUDIO INDISPONÍVEL // VERIFIQUE MP3 E PERMISSÕES');
+  if(gen===voiceGeneration){voicePlaying=false;voiceSpeaking=false;nextVoice();}
+ }
+}
+narration.addEventListener('ended',()=>{
+ voicePlaying=false;voiceSpeaking=false;
+ if(voiceQueue.length)nextVoice();else voiceStatus('IA // TRANSMISSÃO CONCLUÍDA');
+});
+narration.addEventListener('error',()=>{
+ if(!voicePlaying)return;
+ console.error('Arquivo de áudio não carregado:',narration.src);
+ voicePlaying=false;voiceSpeaking=false;
+ voiceStatus('ERRO DE ÁUDIO // CONFIRA teste/audio/');
+ if(voiceQueue.length)nextVoice();
+});
+function queueVoice(...items){
+ voiceQueue.push(...items);
+ // Na inicialização, chamado diretamente do evento de clique para desbloqueio.
+ nextVoice();
 }
 async function loadDetector(){
  if(detector)return detector;
@@ -270,7 +294,7 @@ function frame(now){
     catch(meshError){console.warn('Falha apenas na malha:',meshError);meshUnavailable=true;clearMesh()}
    }
 
-   if(!foundSince)foundSince=now;
+   if(!foundSince){foundSince=now;if(!faceNarrated){faceNarrated=true;queueVoice('deteccao');}}
    const percent=Math.min(100,Math.floor((now-foundSince)/25));
    update('ROSTO DETECTADO // '+percent+'%');
    scanBox.classList.add('scanning');progress(percent);
@@ -282,9 +306,7 @@ function frame(now){
     successTimeout=setTimeout(()=>{scanBox.classList.remove('verified');panel.classList.remove('active')},1600);
     btn.classList.remove('hidden');
     voiceState.textContent='PRESENÇA FACIAL CONFIRMADA';
-    speak(CONFIG.missionEnabled
-      ? 'Reconhecimento concluído. Presença confirmada. Seja bem-vindo ao Ecos do Tempo. Sua primeira missão está disponível na tela.'
-      : 'Reconhecimento concluído. Presença confirmada. Seja bem-vindo ao Ecos do Tempo. O protocolo permanece reservado até dois mil e vinte e sete.');
+    queueVoice('conclusao','mensagem');
    }
   }else{
    foundSince=0;faceBox.style.display='none';clearMesh();scanBox.classList.remove('scanning');progress(0);update('PROCURANDO ROSTO // CENTRALIZE O ROSTO');
@@ -298,13 +320,12 @@ function frame(now){
 }
 btn.addEventListener('click',async()=>{
  if(active)return;
- resetEffects();beep(520,.06,.03);btn.classList.add('hidden');panel.classList.add('active');
+ resetEffects();resetVoice();faceNarrated=false;queueVoice('inicio');beep(520,.06,.03);btn.classList.add('hidden');panel.classList.add('active');
  update('SOLICITANDO CÂMERA...');diag.textContent='CÂMERA: SOLICITANDO PERMISSÃO';
  try{
   if(!navigator.mediaDevices?.getUserMedia)throw new Error('Acesse pelo endereço HTTPS publicado, não pelo arquivo local.');
   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
   video.srcObject=stream;await video.play();active=true;
-  speak('Protocolo Ecos do Tempo iniciado. Sistema óptico operacional. Posicione seu rosto para autenticação.');
   await loadDetector();if(!active)return;
   frames=0;foundSince=0;lastVideoTime=-1;lastRun=0;lastMeshAt=0;
   update('DETECTOR ATIVO // POSICIONE O ROSTO');
@@ -316,8 +337,8 @@ btn.addEventListener('click',async()=>{
   diag.textContent='VERIFIQUE A CONEXÃO E A PERMISSÃO DA CÂMERA';
  }
 });
-cancel.addEventListener('click',()=>{resetEffects();stopCamera();speechSynthesis?.cancel();btn.classList.remove('hidden');voiceSpeaking=false;voiceState.textContent='ESCANEAMENTO CANCELADO';});
-stop.addEventListener('click',()=>{speechSynthesis?.cancel();voiceSpeaking=false;voiceState.textContent='VOZ INTERROMPIDA';});
-window.addEventListener('pagehide',()=>{clearTimeout(successTimeout);stopCamera();speechSynthesis?.cancel();});
+cancel.addEventListener('click',()=>{resetEffects();stopCamera();resetVoice();btn.classList.remove('hidden');voiceSpeaking=false;voiceState.textContent='ESCANEAMENTO CANCELADO';});
+stop.addEventListener('click',()=>{resetVoice();voiceSpeaking=false;voiceState.textContent='VOZ INTERROMPIDA';});
+window.addEventListener('pagehide',()=>{clearTimeout(successTimeout);stopCamera();resetVoice();});
 </script>
 </body></html>
