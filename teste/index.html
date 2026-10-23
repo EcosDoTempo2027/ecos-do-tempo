@@ -212,6 +212,28 @@ const narration = new Audio();
 narration.preload='auto';
 const voiceQueue=[];
 let voicePlaying=false,voiceGeneration=0,faceNarrated=false;
+let detectionAudioStarted=false,detectionAudioFinished=false,detectionFallbackStart=0;
+let currentVoiceItem=null;
+const DETECTION_FALLBACK_MS=9000; // apenas se o arquivo falhar
+function resetDetectionTiming(){
+ detectionAudioStarted=false;detectionAudioFinished=false;detectionFallbackStart=0;currentVoiceItem=null;
+}
+function detectionPercent(now){
+ if(detectionAudioFinished)return 100;
+ if(detectionAudioStarted && currentVoiceItem==='deteccao'){
+  const duration=narration.duration;
+  if(Number.isFinite(duration)&&duration>0){
+   return Math.min(99,Math.floor(100*narration.currentTime/duration));
+  }
+  if(!detectionFallbackStart)detectionFallbackStart=now;
+  return Math.min(95,Math.floor(95*(now-detectionFallbackStart)/DETECTION_FALLBACK_MS));
+ }
+ if(detectionFallbackStart){
+  if(now-detectionFallbackStart>=DETECTION_FALLBACK_MS){detectionAudioFinished=true;return 100;}
+  return Math.min(99,Math.floor(100*(now-detectionFallbackStart)/DETECTION_FALLBACK_MS));
+ }
+ return 0; // aguarda o término da fala inicial e o início da fala de detecção
+}
 const audioFiles={
  inicio:'audio/ultron_inicio.mp3',
  deteccao:'audio/ultron_deteccao.mp3',
@@ -220,31 +242,35 @@ const audioFiles={
 };
 function voiceStatus(msg){voiceState.textContent=msg;}
 function resetVoice(){
- voiceGeneration++;voiceQueue.length=0;voicePlaying=false;
+ voiceGeneration++;voiceQueue.length=0;voicePlaying=false;resetDetectionTiming();
  narration.pause();narration.removeAttribute('src');narration.load();
  voiceSpeaking=false;
 }
 async function nextVoice(){
  if(voicePlaying || !voiceQueue.length)return;
  const item=voiceQueue.shift(),gen=voiceGeneration;
- voicePlaying=true;voiceSpeaking=true;
+ voicePlaying=true;voiceSpeaking=true;currentVoiceItem=item;
  narration.src=audioFiles[item];
  voiceStatus('IA // TRANSMISSÃO: '+item.toUpperCase());
- try{await narration.play();}
+ try{await narration.play();if(gen===voiceGeneration && item==='deteccao')detectionAudioStarted=true;}
  catch(err){
   console.error('Não foi possível reproduzir '+narration.src,err);
   voiceStatus('ÁUDIO INDISPONÍVEL // VERIFIQUE MP3 E PERMISSÕES');
+  if(item==='deteccao'){detectionAudioStarted=false;detectionFallbackStart=performance.now();}
   if(gen===voiceGeneration){voicePlaying=false;voiceSpeaking=false;nextVoice();}
  }
 }
 narration.addEventListener('ended',()=>{
+ if(currentVoiceItem==='deteccao'){detectionAudioFinished=true;detectionAudioStarted=false;}
+ currentVoiceItem=null;
  voicePlaying=false;voiceSpeaking=false;
  if(voiceQueue.length)nextVoice();else voiceStatus('IA // TRANSMISSÃO CONCLUÍDA');
 });
 narration.addEventListener('error',()=>{
  if(!voicePlaying)return;
  console.error('Arquivo de áudio não carregado:',narration.src);
- voicePlaying=false;voiceSpeaking=false;
+ if(currentVoiceItem==='deteccao'){detectionAudioStarted=false;detectionFallbackStart=performance.now();}
+ voicePlaying=false;voiceSpeaking=false;currentVoiceItem=null;
  voiceStatus('ERRO DE ÁUDIO // CONFIRA teste/audio/');
  if(voiceQueue.length)nextVoice();
 });
@@ -295,12 +321,13 @@ function frame(now){
    }
 
    if(!foundSince){foundSince=now;if(!faceNarrated){faceNarrated=true;queueVoice('deteccao');}}
-   const percent=Math.min(100,Math.floor((now-foundSince)/25));
+   // O progresso acompanha o tempo real do MP3 de detecção, não um cronômetro de 2,5 s.
+   const percent=detectionPercent(now);
    update('ROSTO DETECTADO // '+percent+'%');
    scanBox.classList.add('scanning');progress(percent);
    if(now-lastBeepAt>660 && percent<100){beep(680+percent*3,.04,.018);lastBeepAt=now;}
 
-   if(percent===100){
+   if(percent===100 && detectionAudioFinished){
     scanCompleted=true;beep(880,.09,.045);setTimeout(()=>beep(1175,.13,.04),120);
     stopCamera();scanBox.classList.add('verified');panel.classList.add('active');progress(100);
     successTimeout=setTimeout(()=>{scanBox.classList.remove('verified');panel.classList.remove('active')},1600);
