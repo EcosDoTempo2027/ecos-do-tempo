@@ -69,7 +69,6 @@
 <div id="scanPanel"><div class="scanbox" id="scanBox"><span class="scan-corner tl"></span><span class="scan-corner tr"></span><span class="scan-corner bl"></span><span class="scan-corner br"></span><div class="scan-data"><span>ECOS // VISÃO</span><span>SCAN / 2027</span></div><div id="scanDone"><strong>✓</strong><span>PRESENÇA CONFIRMADA</span></div><canvas id="faceMesh" aria-hidden="true"></canvas><video id="scanVideo" autoplay playsinline muted></video><div class="scanline"></div><div id="faceBox" class="facebox"></div></div><p id="scanStatus">AGUARDANDO CÂMERA</p><div id="scanProgress" role="progressbar" aria-label="Progresso de detecção" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="scanProgressFill"></div></div><div id="scanProgressLabel">AGUARDANDO DETECÇÃO // 0%</div><p id="scanDiag" class="diagnostic">MODELO: AGUARDANDO // QUADROS: 0</p><small>Detecta a presença de um rosto, sem identificar a pessoa. Nenhuma imagem é armazenada ou enviada.</small><button class="button" id="cancelScan">CANCELAR</button></div>
 <div class="divider"></div>
 <section id="locked"><p class="status">▣ ACESSO RESTRITO · PROTOCOLO BLOQUEADO</p><div class="body"><p>Um segredo foi confiado a você antes mesmo de saber que existia.</p><p>O objeto que o trouxe até aqui <strong>não foi escolhido por acaso.</strong></p><p>Esta mensagem pertence a uma missão preparada em 2026.</p><p><strong>Aguardando autorização de ativação em 2027.</strong></p></div><p class="quote">“Algumas coisas o tempo leva. Outras, ele guarda para serem encontradas.”</p><p class="tag">NÃO DESCARTE A CHAVE · AGUARDE INSTRUÇÕES</p></section>
-<section id="voiceLab" aria-label="Laboratório de vozes" style="margin:22px auto;padding:16px;max-width:570px;border:1px solid #2e7d92;background:#071a29;text-align:center"><div style="font:700 12px monospace;letter-spacing:.12em;color:#78efff">LABORATÓRIO DE VOZ // V3.2</div><p class="small">Amostras sintéticas originais em português brasileiro. Escolha uma voz e escute antes de iniciar o reconhecimento.</p><label for="voiceMode" style="font-size:13px">Perfil vocal: </label><select id="voiceMode" style="background:#092a39;color:#b9faff;border:1px solid #43aabd;padding:9px;border-radius:3px"><option value="jarvis">ASSISTENTE — grave e elegante</option><option value="ultron">ENTIDADE — profunda e metálica</option><option value="browser">Voz padrão do navegador</option></select><div style="margin:12px"><button type="button" class="button" id="previewVoice">▶ OUVIR AMOSTRA</button> <button type="button" class="button" id="stopPreview">■ PARAR ÁUDIO</button></div><div class="small" id="voiceLabStatus" aria-live="polite">Selecione um perfil para ouvir a amostra.</div></section>
 <section id="unlocked" class="hidden mission"><p class="status open">● ACESSO AUTORIZADO · MISSÃO INICIADA</p><div class="body"><p>Agente identificado. Você acaba de descobrir um segredo que permaneceu escondido durante muito tempo.</p><p><strong>MISSÃO 01 — O PRIMEIRO DESTINO</strong></p><p>Tenho nome de aves que exibem cores.<br>Não tenho asas, mas recebo visitantes.<br>Não sou floresta, embora meu nome lembre seus habitantes.<br>Meu nome pertence a um lugar onde pessoas caminham e descansam.</p><p><strong>Qual é o destino?</strong></p><span id="coordinates" class="coords"></span><p>Ao chegar, procure as próximas instruções. Observe com atenção e respeite os espaços ao redor.</p><div class="actions"><a id="mapsLink" class="button" href="#" target="_blank" rel="noopener noreferrer">ABRIR LOCALIZAÇÃO ↗</a></div></div><p class="quote">“Algumas coisas o tempo leva. Outras, ele guarda para serem encontradas.”</p></section>
 <div class="divider"></div><p class="tag">OPERAÇÃO ECOS DO TEMPO · TRANSMISSÃO SEGURA</p>
 </main>
@@ -207,12 +206,24 @@ function stopCamera(){
  if(stream){for(const track of stream.getTracks())track.stop();stream=null;}
  video.pause();video.srcObject=null;faceBox.style.display='none';clearMesh();panel.classList.remove('active');scanBox.classList.remove('scanning');
 }
+if('speechSynthesis' in window){speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();}
 function speak(message){
  if(!('speechSynthesis' in window))return;
  try{
   speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(message);u.lang='pt-BR';u.rate=.88;u.pitch=.86;
-  const voices=speechSynthesis.getVoices();u.voice=voices.find(v=>v.lang.toLowerCase()==='pt-br')||voices.find(v=>v.lang.startsWith('pt'))||null;
+  const u=new SpeechSynthesisUtterance(message);
+  u.lang='pt-BR';u.rate=.98;u.pitch=.78;u.volume=1;
+  const voices=speechSynthesis.getVoices();
+  const pt=voices.filter(v=>v.lang.toLowerCase().replace('_','-')==='pt-br');
+  const score=v=>{
+   const name=v.name.toLowerCase();
+   return (name.includes('antonio')?100:0)+(name.includes('francisca')?-30:0)+
+          (name.includes('microsoft')?35:0)+(name.includes('google')?20:0)+
+          (name.includes('natural')||name.includes('neural')?25:0)+(!v.localService?5:0);
+  };
+  pt.sort((a,b)=>score(b)-score(a));
+  u.voice=pt[0]||voices.find(v=>v.lang.toLowerCase().startsWith('pt'))||null;
+  console.info('Ecos do Tempo // voz selecionada:',u.voice?.name||'padrão do sistema');
   u.onstart=()=>{voiceSpeaking=true;voiceState.textContent='IA // TRANSMISSÃO DE VOZ ATIVA'};
   u.onend=u.onerror=()=>{voiceSpeaking=false;voiceState.textContent='SÍNTESE DE VOZ // EM ESPERA'};
   speechSynthesis.speak(u);
@@ -271,10 +282,9 @@ function frame(now){
     successTimeout=setTimeout(()=>{scanBox.classList.remove('verified');panel.classList.remove('active')},1600);
     btn.classList.remove('hidden');
     voiceState.textContent='PRESENÇA FACIAL CONFIRMADA';
-    if(window.ecosVoice?.mode()!=='browser')window.ecosVoice?.play('conclusao');
-    else speak(CONFIG.missionEnabled
-      ? 'Presença facial confirmada. Protocolo Ecos do Tempo autorizado. Sua primeira missão está disponível na tela.'
-      : 'Presença facial confirmada. Protocolo Ecos do Tempo localizado. Acesso restrito. Aguardando autorização de ativação em dois mil e vinte e sete.');
+    speak(CONFIG.missionEnabled
+      ? 'Reconhecimento concluído. Presença confirmada. Seja bem-vindo ao Ecos do Tempo. Sua primeira missão está disponível na tela.'
+      : 'Reconhecimento concluído. Presença confirmada. Seja bem-vindo ao Ecos do Tempo. O protocolo permanece reservado até dois mil e vinte e sete.');
    }
   }else{
    foundSince=0;faceBox.style.display='none';clearMesh();scanBox.classList.remove('scanning');progress(0);update('PROCURANDO ROSTO // CENTRALIZE O ROSTO');
@@ -294,8 +304,7 @@ btn.addEventListener('click',async()=>{
   if(!navigator.mediaDevices?.getUserMedia)throw new Error('Acesse pelo endereço HTTPS publicado, não pelo arquivo local.');
   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
   video.srcObject=stream;await video.play();active=true;
-  if(window.ecosVoice?.mode()==='browser')speak('Sistema iniciado. Câmera autorizada. Iniciando detecção facial local.');
-  else window.ecosVoice?.play('inicio');
+  speak('Protocolo Ecos do Tempo iniciado. Sistema óptico operacional. Posicione seu rosto para autenticação.');
   await loadDetector();if(!active)return;
   frames=0;foundSince=0;lastVideoTime=-1;lastRun=0;lastMeshAt=0;
   update('DETECTOR ATIVO // POSICIONE O ROSTO');
@@ -307,30 +316,8 @@ btn.addEventListener('click',async()=>{
   diag.textContent='VERIFIQUE A CONEXÃO E A PERMISSÃO DA CÂMERA';
  }
 });
-cancel.addEventListener('click',()=>{resetEffects();stopCamera();speechSynthesis?.cancel();window.ecosVoice?.stop();btn.classList.remove('hidden');voiceSpeaking=false;voiceState.textContent='ESCANEAMENTO CANCELADO';});
-stop.addEventListener('click',()=>{window.ecosVoice?.stop();speechSynthesis?.cancel();voiceSpeaking=false;voiceState.textContent='VOZ INTERROMPIDA';});
-window.addEventListener('pagehide',()=>{clearTimeout(successTimeout);stopCamera();window.ecosVoice?.stop();speechSynthesis?.cancel();});
-</script>
-<script>
-/* V3.2: trilhas locais de áudio. O reconhecimento facial V3.1 permanece inalterado. */
-(function(){
- const mode=document.getElementById('voiceMode'),play=document.getElementById('previewVoice'),stop=document.getElementById('stopPreview'),label=document.getElementById('voiceLabStatus');
- let current=null;
- window.ecosVoice={
-  mode:()=>mode.value,
-  stop:()=>{if(current){current.pause();current.currentTime=0;current=null;}},
-  play:async function(phase){
-   this.stop();if(mode.value==='browser')return false;
-   const a=new Audio('audio/'+mode.value+'_'+phase+'.mp3');current=a;
-   a.onended=()=>{if(current===a)current=null;label.textContent='Áudio concluído.'};
-   a.onerror=()=>{label.textContent='Falha ao carregar o MP3. Confira a pasta audio.'};
-   try{await a.play();label.textContent='REPRODUZINDO // '+mode.value.toUpperCase();return true;}
-   catch(err){label.textContent='O navegador bloqueou o áudio. Toque em OUVIR AMOSTRA.';return false;}
-  }
- };
- play.addEventListener('click',()=>{window.speechSynthesis?.cancel();window.ecosVoice.play('inicio')});
- stop.addEventListener('click',()=>{window.ecosVoice.stop();label.textContent='Áudio interrompido.'});
- mode.addEventListener('change',()=>{window.ecosVoice.stop();label.textContent=mode.value==='browser'?'Voz padrão ativada.':'Perfil '+mode.value.toUpperCase()+' selecionado.'});
-})();
+cancel.addEventListener('click',()=>{resetEffects();stopCamera();speechSynthesis?.cancel();btn.classList.remove('hidden');voiceSpeaking=false;voiceState.textContent='ESCANEAMENTO CANCELADO';});
+stop.addEventListener('click',()=>{speechSynthesis?.cancel();voiceSpeaking=false;voiceState.textContent='VOZ INTERROMPIDA';});
+window.addEventListener('pagehide',()=>{clearTimeout(successTimeout);stopCamera();speechSynthesis?.cancel();});
 </script>
 </body></html>
