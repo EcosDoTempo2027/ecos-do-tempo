@@ -26,7 +26,7 @@
 #scanPanel{display:none;max-width:380px;margin:20px auto;text-align:center}#scanPanel.active{display:block}.scanbox{position:relative;aspect-ratio:4/3;overflow:hidden;border:2px solid #54eaff;background:#020a11;box-shadow:0 0 25px #18cfff44}.scanbox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}.scanline{position:absolute;left:0;right:0;top:0;height:3px;background:#9ff;box-shadow:0 0 15px #1df;animation:scanmove 2s linear infinite alternate}@keyframes scanmove{to{top:100%}}#scanStatus{font:700 12px monospace;color:#6ef0ff;margin:12px}#scanPanel small{display:block;color:#9cb8c6;margin:12px}.facebox{position:absolute;border:2px solid #79ffcb;box-shadow:0 0 12px #45ffb4;pointer-events:none;display:none}.diagnostic{font:11px/1.5 monospace;color:#9ed9e5;overflow-wrap:anywhere;margin:9px 0}
 </style>
 <style>
-/* V3 EXPERIMENTAL — efeitos visuais, sem alterar a detecção facial */
+/* V3.1 EXPERIMENTAL — efeitos visuais + malha facial opcional */
 .scanbox{isolation:isolate;border-radius:5px;transition:box-shadow .3s;}
 .scanbox:after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;background:linear-gradient(135deg,#17e9ff13,#061b5300 48%,#3e8eff24),repeating-linear-gradient(0deg,#62eaff08 0 1px,transparent 1px 6px);mix-blend-mode:screen;}
 .scanbox.scanning{box-shadow:0 0 28px #24e7ff77,inset 0 0 28px #23e7ff33;}
@@ -46,6 +46,14 @@
 @keyframes successFlash{from{opacity:0;transform:scale(1.08)}to{opacity:1;transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.scanbox.verified #scanDone{animation:none}#scanProgressFill{transition:none}}
 </style>
+<style>
+/* V3.1: malha facial desenhada sobre o vídeo, sem alterar a autenticação */
+#faceMesh{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;filter:drop-shadow(0 0 3px #22e9ff);}
+.scanbox.mesh-on video{filter:sepia(.12) saturate(1.12) hue-rotate(160deg) contrast(1.07);}
+.scanbox.mesh-on:before{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(120deg,#03dfff13,transparent 40%,#368fff1b);}
+#meshState{font:700 10px/1.5 ui-monospace,monospace;color:#8cecff;letter-spacing:.06em;margin:6px auto 0;}
+@media(prefers-reduced-motion:reduce){#faceMesh{filter:none}}
+</style>
 </head>
 <body><main class="frame">
 <div class="top"><span><span class="dot"></span>SISTEMA ONLINE</span><span>ARQUIVO // 2027</span></div>
@@ -58,7 +66,7 @@
 </div>
 <h1>ECOS DO TEMPO</h1><h2>PROTOCOLO CONFIDENCIAL</h2>
 <div class="voice-controls"><button id="activateVoice" class="button" type="button">▶ ATIVAR SISTEMA</button><button id="stopVoice" class="button hidden" type="button">■ INTERROMPER VOZ</button><p id="voiceState" class="voice-state" role="status" aria-live="polite">SÍNTESE DE VOZ // AGUARDANDO COMANDO</p></div>
-<div id="scanPanel"><div class="scanbox" id="scanBox"><span class="scan-corner tl"></span><span class="scan-corner tr"></span><span class="scan-corner bl"></span><span class="scan-corner br"></span><div class="scan-data"><span>ECOS // VISÃO</span><span>SCAN / 2027</span></div><div id="scanDone"><strong>✓</strong><span>PRESENÇA CONFIRMADA</span></div><video id="scanVideo" autoplay playsinline muted></video><div class="scanline"></div><div id="faceBox" class="facebox"></div></div><p id="scanStatus">AGUARDANDO CÂMERA</p><div id="scanProgress" role="progressbar" aria-label="Progresso de detecção" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="scanProgressFill"></div></div><div id="scanProgressLabel">AGUARDANDO DETECÇÃO // 0%</div><p id="scanDiag" class="diagnostic">MODELO: AGUARDANDO // QUADROS: 0</p><small>Detecta a presença de um rosto, sem identificar a pessoa. Nenhuma imagem é armazenada ou enviada.</small><button class="button" id="cancelScan">CANCELAR</button></div>
+<div id="scanPanel"><div class="scanbox" id="scanBox"><span class="scan-corner tl"></span><span class="scan-corner tr"></span><span class="scan-corner bl"></span><span class="scan-corner br"></span><div class="scan-data"><span>ECOS // VISÃO</span><span>SCAN / 2027</span></div><div id="scanDone"><strong>✓</strong><span>PRESENÇA CONFIRMADA</span></div><canvas id="faceMesh" aria-hidden="true"></canvas><video id="scanVideo" autoplay playsinline muted></video><div class="scanline"></div><div id="faceBox" class="facebox"></div></div><p id="scanStatus">AGUARDANDO CÂMERA</p><div id="scanProgress" role="progressbar" aria-label="Progresso de detecção" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="scanProgressFill"></div></div><div id="scanProgressLabel">AGUARDANDO DETECÇÃO // 0%</div><p id="scanDiag" class="diagnostic">MODELO: AGUARDANDO // QUADROS: 0</p><small>Detecta a presença de um rosto, sem identificar a pessoa. Nenhuma imagem é armazenada ou enviada.</small><button class="button" id="cancelScan">CANCELAR</button></div>
 <div class="divider"></div>
 <section id="locked"><p class="status">▣ ACESSO RESTRITO · PROTOCOLO BLOQUEADO</p><div class="body"><p>Um segredo foi confiado a você antes mesmo de saber que existia.</p><p>O objeto que o trouxe até aqui <strong>não foi escolhido por acaso.</strong></p><p>Esta mensagem pertence a uma missão preparada em 2026.</p><p><strong>Aguardando autorização de ativação em 2027.</strong></p></div><p class="quote">“Algumas coisas o tempo leva. Outras, ele guarda para serem encontradas.”</p><p class="tag">NÃO DESCARTE A CHAVE · AGUARDE INSTRUÇÕES</p></section>
 <section id="unlocked" class="hidden mission"><p class="status open">● ACESSO AUTORIZADO · MISSÃO INICIADA</p><div class="body"><p>Agente identificado. Você acaba de descobrir um segredo que permaneceu escondido durante muito tempo.</p><p><strong>MISSÃO 01 — O PRIMEIRO DESTINO</strong></p><p>Tenho nome de aves que exibem cores.<br>Não tenho asas, mas recebo visitantes.<br>Não sou floresta, embora meu nome lembre seus habitantes.<br>Meu nome pertence a um lugar onde pessoas caminham e descansam.</p><p><strong>Qual é o destino?</strong></p><span id="coordinates" class="coords"></span><p>Ao chegar, procure as próximas instruções. Observe com atenção e respeite os espaços ao redor.</p><div class="actions"><a id="mapsLink" class="button" href="#" target="_blank" rel="noopener noreferrer">ABRIR LOCALIZAÇÃO ↗</a></div></div><p class="quote">“Algumas coisas o tempo leva. Outras, ele guarda para serem encontradas.”</p></section>
@@ -118,6 +126,7 @@ const el=id=>document.getElementById(id);
 const btn=el('activateVoice'),stop=el('stopVoice'),cancel=el('cancelScan');
 const panel=el('scanPanel'),video=el('scanVideo'),status=el('scanStatus');
 const diag=el('scanDiag'),faceBox=el('faceBox'),voiceState=el('voiceState');
+const meshCanvas=el('faceMesh'),meshCtx=meshCanvas.getContext('2d');
 const scanBox=el('scanBox'),progressFill=el('scanProgressFill'),progressLabel=el('scanProgressLabel'),progressBar=el('scanProgress');
 let audioCtx=null,lastBeepAt=0,scanCompleted=false,successTimeout=0;
 function beep(freq=750,duration=.045,volume=.035){
@@ -141,11 +150,61 @@ function resetEffects(){clearTimeout(successTimeout);scanCompleted=false;scanBox
 const MODEL='https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
 const CDN='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 let stream=null,detector=null,active=false,frames=0,foundSince=0,raf=0,lastVideoTime=-1,lastRun=0;
+// O detector V3 continua responsável pelo 100%; a malha é opcional.
+const MESH_MODEL='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+let landmarker=null,meshLoading=false,meshUnavailable=false,lastMeshAt=0,meshModule=null;
+function clearMesh(){meshCtx.clearRect(0,0,meshCanvas.width,meshCanvas.height);scanBox.classList.remove('mesh-on')}
+async function loadMesh(){
+ if(landmarker||meshLoading||meshUnavailable)return;
+ meshLoading=true;
+ try{
+  diag.textContent+=' // MALHA: CARREGANDO';
+  const {FaceLandmarker,FilesetResolver}=meshModule||await import(CDN+'/+esm');
+  meshModule={FaceLandmarker,FilesetResolver};
+  const vision=await FilesetResolver.forVisionTasks(CDN+'/wasm');
+  if(!active)return;
+  landmarker=await FaceLandmarker.createFromOptions(vision,{
+   baseOptions:{modelAssetPath:MESH_MODEL,delegate:'CPU'},runningMode:'VIDEO',numFaces:1,
+   minFaceDetectionConfidence:0.5,minFacePresenceConfidence:0.5,minTrackingConfidence:0.5,
+   outputFaceBlendshapes:false,outputFacialTransformationMatrixes:false
+  });
+ }catch(e){meshUnavailable=true;console.warn('Malha opcional indisponível; detecção principal preservada:',e)}
+ finally{meshLoading=false}
+}
+function renderMesh(points){
+ if(!points?.length){clearMesh();return;}
+ const w=scanBox.clientWidth,h=scanBox.clientHeight;
+ const dpr=Math.min(devicePixelRatio||1,2),pw=Math.round(w*dpr),ph=Math.round(h*dpr);
+ if(meshCanvas.width!==pw||meshCanvas.height!==ph){meshCanvas.width=pw;meshCanvas.height=ph}
+ meshCtx.setTransform(dpr,0,0,dpr,0,0);meshCtx.clearRect(0,0,w,h);
+ // Video object-fit:cover e transform:scaleX(-1): replicar recorte e espelhamento.
+ const vw=video.videoWidth,vh=video.videoHeight;if(!vw||!vh)return;
+ const scale=Math.max(w/vw,h/vh),sw=vw*scale,sh=vh*scale,ox=(w-sw)/2,oy=(h-sh)/2;
+ const xy=p=>({x:w-(ox+p.x*sw),y:oy+p.y*sh});
+ const mesh=meshModule.FaceLandmarker;
+ const paths=[mesh.FACE_LANDMARKS_FACE_OVAL,mesh.FACE_LANDMARKS_LEFT_EYE,
+  mesh.FACE_LANDMARKS_RIGHT_EYE,mesh.FACE_LANDMARKS_LEFT_EYEBROW,
+  mesh.FACE_LANDMARKS_RIGHT_EYEBROW,mesh.FACE_LANDMARKS_LIPS,
+  mesh.FACE_LANDMARKS_NOSE];
+ scanBox.classList.add('mesh-on');
+ meshCtx.lineWidth=0.85;meshCtx.strokeStyle='rgba(81,242,255,.62)';
+ for(const path of paths){for(const edge of path||[]){const a=points[edge.start],b=points[edge.end];if(!a||!b)continue;
+  const p=xy(a),q=xy(b);meshCtx.beginPath();meshCtx.moveTo(p.x,p.y);meshCtx.lineTo(q.x,q.y);meshCtx.stroke();}}
+ // Uma malha geométrica leve conectando pontos reais (não é uma reconstrução 3D).
+ const indices=[10,67,105,66,107,9,336,296,334,297,338,168,6,197,195,5,4,1,2,98,327,33,133,362,263,61,291,0,17,152,234,454];
+ const triangles=[[10,168,234],[10,168,454],[168,33,1],[168,263,1],[33,98,61],[263,327,291],[61,1,17],[291,1,17],[234,61,152],[454,291,152]];
+ meshCtx.strokeStyle='rgba(32,194,245,.3)';meshCtx.lineWidth=.7;
+ for(const t of triangles){const pts=t.map(i=>points[i]).filter(Boolean);if(pts.length!==3)continue;
+  meshCtx.beginPath();pts.forEach((v,i)=>{const p=xy(v);if(i===0)meshCtx.moveTo(p.x,p.y);else meshCtx.lineTo(p.x,p.y)});meshCtx.closePath();meshCtx.stroke();}
+ meshCtx.fillStyle='#b0ffff';
+ for(const i of indices){const p=points[i];if(!p)continue;const q=xy(p);meshCtx.beginPath();meshCtx.arc(q.x,q.y,1.65,0,Math.PI*2);meshCtx.fill()}
+}
+
 function update(s){status.textContent=s;}
 function stopCamera(){
  active=false;cancelAnimationFrame(raf);
  if(stream){for(const track of stream.getTracks())track.stop();stream=null;}
- video.pause();video.srcObject=null;faceBox.style.display='none';panel.classList.remove('active');scanBox.classList.remove('scanning');
+ video.pause();video.srcObject=null;faceBox.style.display='none';clearMesh();panel.classList.remove('active');scanBox.classList.remove('scanning');
 }
 function speak(message){
  if(!('speechSynthesis' in window))return;
@@ -191,6 +250,14 @@ function frame(now){
   diag.textContent='MODELO: ATIVO // QUADROS: '+frames+' // ROSTOS: '+count;
   if(count){
    drawFace(result.detections[0]);
+   // A malha é carregada em paralelo e nunca bloqueia o detector principal.
+   if(!landmarker&&!meshLoading&&!meshUnavailable)void loadMesh();
+   if(landmarker && now-lastMeshAt>=180){
+    lastMeshAt=now;
+    try{const m=landmarker.detectForVideo(video,now);renderMesh(m.faceLandmarks?.[0]);}
+    catch(meshError){console.warn('Falha apenas na malha:',meshError);meshUnavailable=true;clearMesh()}
+   }
+
    if(!foundSince)foundSince=now;
    const percent=Math.min(100,Math.floor((now-foundSince)/25));
    update('ROSTO DETECTADO // '+percent+'%');
@@ -208,7 +275,7 @@ function frame(now){
       : 'Presença facial confirmada. Protocolo Ecos do Tempo localizado. Acesso restrito. Aguardando autorização de ativação em dois mil e vinte e sete.');
    }
   }else{
-   foundSince=0;faceBox.style.display='none';scanBox.classList.remove('scanning');progress(0);update('PROCURANDO ROSTO // CENTRALIZE O ROSTO');
+   foundSince=0;faceBox.style.display='none';clearMesh();scanBox.classList.remove('scanning');progress(0);update('PROCURANDO ROSTO // CENTRALIZE O ROSTO');
   }
  }catch(e){
   console.error('Erro de detecção facial:',e);
@@ -227,7 +294,7 @@ btn.addEventListener('click',async()=>{
   video.srcObject=stream;await video.play();active=true;
   speak('Sistema iniciado. Câmera autorizada. Iniciando detecção facial local.');
   await loadDetector();if(!active)return;
-  frames=0;foundSince=0;lastVideoTime=-1;lastRun=0;
+  frames=0;foundSince=0;lastVideoTime=-1;lastRun=0;lastMeshAt=0;
   update('DETECTOR ATIVO // POSICIONE O ROSTO');
   raf=requestAnimationFrame(frame);
  }catch(e){
